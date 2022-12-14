@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WebGL Reflection Mapping With Skybox</title>
+<script type="x-shader/x-vertex" id="vshaderSB">
+     uniform mat4 projection;
+     uniform mat4 modelview;
+     attribute vec3 coords;
+     varying vec3 vCoords;
+     void main() {
+        vec4 eyeCoords = modelview * vec4(coords,1.0);
+        gl_Position = projection * eyeCoords;
+        vCoords = coords;//gl_Position.xyz;
+     }
+</script>
+<script type="x-shader/x-fragment" id="fshaderSB">
+     precision mediump float;
+     varying vec3 vCoords;
+     uniform samplerCube skybox;
+     void main() {
+          gl_FragColor = textureCube(skybox, vCoords);
+     }
+</script>
+
+
+<script type="x-shader/x-vertex" id="vshader">
+     uniform mat4 projection;
+     uniform mat4 modelview;
+     attribute vec3 coords;
+     attribute vec3 normal;
+     varying vec3 viewCoords;
+     varying vec3 vNormal;
+     void main() {
+        vec4 eyeCoords = modelview * vec4(coords,1.0);
+        gl_Position = projection * eyeCoords;
+        viewCoords = eyeCoords.xyz;
+        vNormal = normal;
+     }
+</script>
+<script type="x-shader/x-fragment" id="fshader">
+     precision mediump float;
+     varying vec3 vCoords;
+     varying vec3 vNormal;
+     varying vec3 viewCoords;
+     uniform samplerCube skybox;
+     uniform mat3 normalMatrix;
+     uniform mat3 invVT;
+     void main() {
+          vec3 N = normalMatrix * vNormal;
+          vec3 V = -viewCoords;
+          vec3 R = 2.0 * dot(V,N) * N - V;
+          R = invVT * R; // Transform by inverse of view transform, which was applied to the skybox
+          gl_FragColor = textureCube(skybox, R);
+     }
+</script>
+
+<script id="vertexShader" type="not-js">
+    attribute vec3 vPosition;
+    attribute vec3 vNormal;
+    attribute vec3 vColor;
+    attribute vec2 vTexCoord;
+    varying vec3 fPosition;
+    varying vec3 fColor;
+    varying vec3 fNormal;
+    varying vec2 fTexCoord;
+    uniform mat4 uMV;
+    uniform mat4 uMVP;
+
+    void main(void) {
+      gl_Position = uMVP * vec4(vPosition, 1.0);
+      fPosition = (uMV * vec4(vPosition, 1.0)).xyz; // In camera coordinates
+      fColor = vColor;
+      fNormal = vNormal;                            // In local coordinates
+      fTexCoord = vTexCoord;
+   }
+  </script>
+
+  <script id="fragmentShader" type="not-js">
+    precision highp float;
+    varying vec3 fPosition;
+    varying vec3 fColor;
+    varying vec3 fNormal;
+    varying vec2 fTexCoord;
+    uniform mat4 uMV;
+    uniform mat3 uMVn;
+    uniform sampler2D texSampler1;
+    uniform sampler2D texSampler2;
+    uniform float time;
+
+    const vec3  lightV    = vec3(1,0.5,0.25);
+    const float lightI    = 1.0;               // only for diffuse component
+    const float ambientC  = 0.5375;
+    const float diffuseC  = 0.4;
+    const float specularC = 1.0;
+    const float specularE = 4.0;
+    const vec3  lightCol  = vec3(1.0,1.0,1.0);
+    const vec3  objectCol = vec3(1.0,0.6,0.0); 
+    vec2 blinnPhongDir(vec3 lightDir, vec3 n, float lightInt, float Ka,
+      float Kd, float Ks, float shininess) {
+      vec3 s = normalize(lightDir);
+      vec3 v = normalize(-fPosition);
+      vec3 h = normalize(v+s);
+      float diffuse = Kd*(0.2 + dot(fNormal,lightDir));
+      float spec =  Ks * pow(max(0.0, dot(n,h)), shininess);
+      return vec2(diffuse, spec);
+    }
+
+    vec3 scan(vec3 vectorIn, float angle, float rotateSpeed){
+      vec3 result =  vectorIn;
+      result.x = pow(-vectorIn.x, time)*0.1;
+      result.y = vectorIn.y * (cos(rotateSpeed * angle));
+      result.z = vectorIn.z * (cos(rotateSpeed * angle));
+      return result;
+    }
+    
+    void main(void) {
+      vec3 texColor=texture2D(texSampler1,fTexCoord).xyz;
+      vec3 n = normalize(uMVn * fNormal);
+      vec3 ColorS  = blinnPhongDir(lightV,n,0.0   ,0.0,     0.0,     specularC,specularE).y*lightCol;
+      vec3 ColorAD = blinnPhongDir(lightV,n,lightI,ambientC,diffuseC,0.0,      1.0      ).x*texColor;
+      vec3 movingLight = scan(vec3(0.1,0.1,0.1), time, 20.0);
+      gl_FragColor = vec4(ColorAD+ColorS+movingLight,1.0);
+    }
+</script>
+
+
+<script type="text/javascript" src="gl-matrix-min.js"></script>
+<script type="text/javascript" src="simple-rotator.js"></script>
+<script type="text/javascript" src="basic-objects-IFS.js"></script>
+
+<script type="text/javascript" src="Nighthawk.js"></script>
+</head>
+<body onload="init()" style="background-color:#DDD">
+
+<h2>WebGL Reflection Map With Skybox</h2>
+
+<noscript><hr><h3>This page requires Javascript and a web browser that supports WebGL</h3><hr></noscript>
+
+<p id="message" style="font-weight:bold">Drag your mouse on the canvas to rotate the view.
+<br>Use left and right arrow keys to rotate the NightHawk.</p>
+
+
+<div>
+
+    <canvas width=600 height=600 id="glcanvas" style="background-color:blue"></canvas>
+
+</div>
+
+
+</body>
+</html>
+
